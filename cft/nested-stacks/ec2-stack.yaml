@@ -1,0 +1,318 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Project Helenium: CFN Template to create an EC2 instance with stess tool installed.
+
+Metadata:
+  TemplateName: ec2-stack.yaml
+  TemplateType: IAM Role / IAM Policy / EC2 Instance Policy
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Helenium
+  Modification History:
+    - 1.0.0  - Dec 24, 2023   -- Initial Version 
+  Resources: 
+    - EC2 instance
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label:
+        default: "Project Name And Environment:"
+      Parameters:
+      - ProjectName
+      - Environment
+    #################################### KMS Key ###################################################
+    - Label: 
+        default: "KMS Configuration:"
+      Parameters: 
+        - KmsMasterKeyId
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - GitHubRef
+      - GitHubURL
+      - GitHubWFRunNumber
+      - GitHubSHA
+      - GitHubRepository
+      - CiBuild
+    #################################### EC2 #######################################################
+    - Label: 
+        default: "EC2 Instance Configuration:"
+      Parameters: 
+        - EC2InstanceType
+        - EC2ImageId
+        - SubnetId
+        - SecurityGroupId
+        - EC2InstanceProfile
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## KMS Key ###################################################
+      KmsMasterKeyId:
+        default: "KMS Key Id."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL:
+        default: "GitHub URL."
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA:
+        default: "GitHub SHA"
+      GitHubRepository:
+        default: "GitHub Repository."
+      CiBuild:
+        default: "Ci Build."
+      ################################### EC2  #####################################################
+      EC2InstanceType:
+        default: Type of EC2 instance to launch for the server.
+      EC2ImageId:
+        default: EC2 Image Id.
+      SubnetId:
+        default: The Subnet where the EC2 instance will be created.
+      SecurityGroupId: 
+        default: EC2 Security Group Id
+      EC2InstanceProfile: 
+        default: EC2 Instance Profile
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: project
+    Description: "The Project Name for which the custom resource will be used."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "[a-z]*"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets."
+  Environment:
+    Default: devl
+    Description: "The Environment Name."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+  ###################################### KMS Key ###################################################
+  KmsMasterKeyId:
+    Default: "arn:aws:kms:us-east-1:237376087602:key/f7eb118d-f1d2-4d70-a046-dfada470840e"
+    Description: "The KMS Key Id Used For Encryption."
+    Type: String
+    MinLength: 75
+    MaxLength: 75
+    AllowedPattern: "[a-z:/0-9-]*"
+    ConstraintDescription: "The length of the KMS Key Id should be 36 and must be lowercase alphabets, numbers and dash."
+  ###################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref Name"
+    Type: String
+  GitHubURL:
+    Default: "https://github.com/"
+    Description: "GitHub URL"
+    Type: String
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workfloww Run Number."
+    Type: Number
+  GitHubSHA:
+    Default: "sha"
+    Description: "The sha value of the last commit"
+    Type: String
+  GitHubRepository:
+    Default: 001-tarius
+    Description: "The GitHub Repository name."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "[a-z0-9-.]*"
+    ConstraintDescription: "The reposiroty length should be between 10 and 30, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String
+  ###################################### EC2 #######################################################
+  EC2InstanceType:
+    Description: Type Of EC2 Instance To Launch For The Server. Only Compute Type Nodes Are Currently Specified.
+    Type: String
+    Default: t2.micro
+    ConstraintDescription: Must be a valid EC2 instance type
+    AllowedValues: 
+      - t2.nano
+      - t2.micro
+      - t2.small
+  EC2ImageId:
+    Description: Image Id To Be Used To Launch The EC2 Instance.
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  SecurityGroupId: 
+    Description: "Security Group Id for the EC2 instance"
+    Type: String
+  SubnetId:
+    Description: VPC Subnet That This Stack Will Be Launched In.
+    Type: AWS::EC2::Subnet::Id
+    AllowedPattern: "[a-z0-9-]*"
+  EC2InstanceProfile:
+    Description: "EC2 Instance Profile."
+    Type: String
+Resources:
+  EC2Instance:
+    # Description: Jenkins Standalone EC2 Instance running Java 8, and Jenkins.
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        Comment: Install Stess Tool
+        # configSets is used when there are multiple configs that you want to run, for multiple instances. If not needed then just config (default) is adequate.
+        configSets:
+          default: [installLinuxExtras, installStressTool] 
+        installLinuxExtras:
+          commands:
+            01_yum_update:
+              command: sudo yum update -y
+            02_yum_upgrade:
+              command: sudo yum upgrade
+            03_install_epel:
+              command: sudo amazon-linux-extras install epel -y
+        installStressTool:
+          packages:
+            yum:
+              stress-ng: []
+          groups:
+            hlnmgroup: {}
+          users:
+            "hlnmuser":
+              groups:
+                - "hlnmgroup"
+          files:
+            "/home/ec2-user/mem-usage.sh":
+              content: |
+                aws cloudwatch put-metric-data --region us-east-1 --namespace "Helenium/EC2" \
+                --metric-name "MemoryUsage" --value "$(free | awk '/Mem/{printf("%d", ($2-$7)/$2*100)}')" \
+                --unit "Percent" --dimensions "Name=InstanceId,Value=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+              mode: "000755"
+              owner: hlnmuser
+              group: hlnmgroup
+            # "/etc/crontab":
+            #   content: |
+            #     * * * * * /home/ec2-user/mem-usage.sh
+            #   mode: "000400"
+            #   owner: hlnmuser
+            #   group: crontab
+            "/etc/cfn/cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: "000400"
+              owner: root
+              group: root
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.EC2Instance.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+              mode: "000400"
+              owner: root
+              group: root
+          commands:
+            01_mem_usage_permission:
+              command: 'chmod +x /home/ec2-user/mem-usage.sh'
+            02_add_script_to_crontab:
+              command: (crontab -l ; echo "* * * * * /home/ec2-user/mem-usage.sh") | sort - | uniq - | crontab -
+          services:
+            sysvinit:
+              cfn-hup:
+                enable: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    # Properties of the Instance that we are launching. Here we define things like EBS volumes, SG's, The AMI used, etc..
+    Properties:
+      # Create the 10GB EBS volume
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            DeleteOnTermination: true
+            VolumeType: gp2
+            VolumeSize: 10
+            Encrypted: true
+            KmsKeyId: !Ref KmsMasterKeyId
+      # Pull the Image or AMI from SSM Parameter Store
+      ImageId: !Ref EC2ImageId
+      # Pull the Intance Type, Subnet, KeyName, etc from the Parameters we defined earlier
+      InstanceType: !Ref EC2InstanceType
+      IamInstanceProfile: !Ref EC2InstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          DeleteOnTermination: true
+          SubnetId: !Ref SubnetId
+          # This defines the SG that we will place on the ENI, We will create the SG after the instance resource definition
+          GroupSet: 
+            - !Ref SecurityGroupId
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            # Get the latest CloudFormation helper scripts
+            yum install -y aws-cfn-bootstrap
+
+            # Start cfn-init
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+            
+            # cfn-init completed so signal success or not
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource EC2Instance --region ${AWS::Region}
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-server${CiBuild}'
+        - Key: ProjectName
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: GitHubRepository
+          Value: !Ref GitHubRepository
+        - Key: GitHubRef
+          Value: !Ref GitHubRef
+        - Key: GitHubURL
+          Value: !Ref GitHubURL
+        - Key: GitHubWFRunNumber
+          Value: !Ref GitHubWFRunNumber
+        - Key: GitHubSHA
+          Value: !Ref GitHubSHA
+  ElasticEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref EC2Instance
+      Tags:
+      - Key: ProjectName
+        Value: !Ref ProjectName
+      - Key: Environment
+        Value: !Ref Environment
+      - Key: GitHubRepository
+        Value: !Ref GitHubRepository
+      - Key: GitHubRef
+        Value: !Ref GitHubRef
+      - Key: GitHubURL
+        Value: !Ref GitHubURL
+      - Key: GitHubWFRunNumber
+        Value: !Ref GitHubWFRunNumber
+      - Key: GitHubSHA
+        Value: !Ref GitHubSHA
+Outputs:
+  EC2InstanceId:
+    Description: The EC2 Instance Id.
+    Value: !Ref EC2Instance
+  EC2PublicIP:
+    Description: The EC2 instance Public IP
+    Value: !GetAtt EC2Instance.PublicIp
+

@@ -1,0 +1,578 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Project Helenium: Root Stack Template To create EC2 Instance Profile, Security Group, SNS Topic with
+  Email Subscription.
+
+Metadata:
+  TemplateName: helenium-root-stack.yaml
+  TemplateType: EC2 Instance Profile
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Helenium
+  Modification History:
+    - 1.0.0  - Dec 23, 2023   -- Initial Version
+  Resources: 
+    - EC2 Instance Profile.
+    - Security group with Rules
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label: 
+        default: "Project And Environment:"
+      Parameters: 
+        - ProjectName
+        - Environment
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - GitHubRef
+      - GitHubURL
+      - GitHubWFRunNumber
+      - GitHubSHA
+      - GitHubRepository
+      - CiBuild
+    #################################### Code Repository Bucket ####################################
+    - Label: 
+        default: "Code Repository Bucket:"
+      Parameters:
+        - CodeRepositoryS3Bucket
+    #################################### KMS Key ###################################################
+    - Label: 
+        default: "KMS Configuration:"
+      Parameters: 
+        - KmsMasterKeyAlias
+    #     - KmsMasterKeyId
+    - Label: 
+        default: "EC2 Instance Profile Configuration:"
+      Parameters: 
+        - IAMPolicyBaseName
+        - IAMRoleBaseName
+        - IAMInstanceProfileBaseName
+    #################################### Custom Resource Stack #####################################
+    - Label: 
+        default: "Custom Resource Stack:"
+      Parameters: 
+      - CustomResourceStackName
+    #################################### VPC and Subnet ############################################
+    - Label:
+        default: "VPC and Subnets:"
+      Parameters:
+      - VpcCidrBlock
+      - PublicSubnet1ACidrBlock
+      - PublicSubnet1BCidrBlock
+      - PrivateSubnet1ACidrBlock
+      - PrivateSubnet1BCidrBlock
+    #################################### Security Group ############################################
+    - Label:
+        default: "Security Group Parameters"
+      Parameters: 
+      - SecurityGroupName
+      - SecurityGroupDescription
+    #################################### EC2 #######################################################
+    - Label: 
+        default: "EC2 Instance Configuration:"
+      Parameters: 
+      - EC2InstanceType
+    ################################### SNS with Email Subscription ###############################
+    - Label: 
+        default: "SNS Configuration:"
+      Parameters: 
+        - SNSTopicBaseName
+        - SNSTopicDisplayName
+        - SNSSubscriptionEmail
+    #################################### EC2 memory Usage EC2 Alarm ################################
+    - Label: 
+        default: "EC2 memory usage CloudWatch Alarm Configuration:"
+      Parameters: 
+        - AlarmComparisonOperator
+        - AlarmThreshold
+        - AlarmPeriodInSeconds
+        - EvaluationPeriods
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: "Project Name."
+      Environment:
+        default: "Environment Name."
+      ################################## GitHub Attributes #########################################
+      GitHubRef:
+        default: "GitHub Ref."
+      GitHubURL: 
+        default: "GitHub repository URL"
+      GitHubWFRunNumber:
+        default: "GitHub Workflow Run Number."
+      GitHubSHA: 
+        default: "GitHub Workflow Run Number."
+      GitHubRepository:
+        default: "GitHub repository name."
+      CiBuild:
+        default: "Feature branch Ci Build."
+      ################################## Code Repository Bucket ####################################
+      CodeRepositoryS3Bucket:
+        default: "Lambda Code S3 Bucket."
+      ################################## KMS Key ###################################################
+      KmsMasterKeyAlias:
+        default: "KMS Key Alias."
+      KmsMasterKeyId:
+        default: "KMS Key Id."
+      ################################## EC2 Instance Profile ######################################
+      IAMPolicyBaseName:
+        default: "IAM Policy Base Name."
+      IAMRoleBaseName:
+        default: "IAM Role Base Name."
+      IAMInstanceProfileBaseName:
+        default: "IAM Instance Profile Base Name"
+      ################################## Security Group ############################################
+      SecurityGroupName: 
+        default: "Security Group name."
+      SecurityGroupDescription: 
+        default: "Security Group description."
+      ################################## SNS Topic With Email Subscription #########################
+      SNSTopicBaseName:
+        default: "SNS Topic."
+      SNSTopicDisplayName:
+        default: "SNS Display Name."
+      SNSSubscriptionEmail:
+        default: "Email Subscription."
+      ################################## EC2 memory usage CW Alarm #################################
+      AlarmComparisonOperator: 
+        default: "Alarm Condition."
+      AlarmThreshold: 
+        default: "Alarm Threshold."
+      AlarmPeriodInSeconds: 
+        default: "larm Period."
+      EvaluationPeriods:
+        default: "Alarm Evaluation Periods."
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: helenium
+    Description: "The Project Name."
+    Type: String
+    MinLength: 5
+    MaxLength: 30
+    AllowedPattern: "[a-z]*"
+    ConstraintDescription: "The length should be between 5 and 30, must contain only lowercase alphabets."
+  Environment:
+    Default: devl
+    Description: "The Environment Name."
+    Type: String
+    AllowedValues: ["devl", "test", "prod"]
+    ConstraintDescription: "The Environment must be devl / test or prod"
+  #################################### GitHub Attributes #########################################
+  GitHubRef:
+    Default: ref_name
+    Description: "GitHub Ref Name"
+    Type: String
+  GitHubURL:
+    Default: "https://github.com/"
+    Description: "GitHub URL"
+    Type: String
+  GitHubWFRunNumber:
+    Default: 1
+    Description: "The Workfloww Run Number."
+    Type: Number
+  GitHubSHA:
+    Default: "sha"
+    Description: "The sha value of the last commit"
+    Type: String
+  GitHubRepository:
+    Default: 0095-helenium-cft
+    Description: "The GitHub Repository name."
+    Type: String
+    MinLength: 10
+    MaxLength: 30
+    AllowedPattern: "[a-z0-9-.]*"
+    ConstraintDescription: "The reposiroty length should be between 10 and 30, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String  
+  ###################################### Custom Resource Stack #####################################
+  CustomResourceStackName:
+    Default: 'lilac-custom-resource-stack'
+    Description: 'S3 Custom Resource Stack Name'
+    Type: String
+  ###################################### VPC and Subnet ############################################
+  VpcCidrBlock:
+    Type: String
+    Description: VPC CIDR Range
+    Default: 172.16.0.0/16
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PublicSubnet1ACidrBlock:
+    Type: String
+    Description: CidrBlock for Public 1A within the VPC.
+    Default: 172.16.0.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PublicSubnet1BCidrBlock:
+    Type: String
+    Description: CidrBlock for Public 1B within the VPC.
+    Default: 172.16.1.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PrivateSubnet1ACidrBlock:
+    Type: String
+    Description: CidrBlock for Private 1B within the VPC.
+    Default: 172.16.2.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: "must be a valid IP CIDR range of the form x.x.x.x/x."
+  PrivateSubnet1BCidrBlock:
+    Type: String
+    Description: CidrBlock for Private 1B within the VPC.
+    Default: 172.16.3.0/24
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+  ###################################### Code Repository Bucket ####################################
+  CodeRepositoryS3Bucket:
+    Default: subhamay-projects-repository-237376087602-devl-us-east-1
+    Description: "Code repository S3 Bucket."
+    Type: String
+    MinLength: 10
+    MaxLength: 63
+    AllowedPattern: "[a-z][a-z0-9-.]*"
+    ConstraintDescription: "The length should be between 3 and 63, must contain only lowercase letter,numbers,dash, dot and should start with a letter."
+  ##################################### KMS Key ###################################################
+  KmsMasterKeyAlias:
+    Default: "SB-KMS"
+    Description: "The KMS Master Key Alias To Be Used For Server Side Encryption."
+    Type: String
+    MinLength: 5
+    MaxLength: 20
+    AllowedPattern: "[a-zA-Z0-9-]*"
+    ConstraintDescription: "The length of the KMS Key Alias should be beteen 5 and 20 and can only contain lowercase alphanumeric characters and dash."
+  KmsMasterKeyId:
+    Default: "arn:aws:kms:us-east-1:237376087602:key/f7eb118d-f1d2-4d70-a046-dfada470840e"
+    Description: "The KMS Key Id Used For Encryption."
+    Type: String
+    MinLength: 75
+    MaxLength: 75
+    AllowedPattern: "[a-z:/0-9-]*"
+    ConstraintDescription: "The length of the KMS Key Id should be 36 and must be lowercase alphabets, numbers and dash."  
+  ###################################### EC2 Instance Profile  #####################################
+  IAMPolicyBaseName:
+    Default: "policy"
+    Description: "The base bame of IAM Policy.The Project Name and Environment will be added as prefix and suffix by the template."
+    Type: String
+    MinLength: 5
+    MaxLength: 15
+    AllowedPattern: "[a-z][a-z0-9-]*"
+    ConstraintDescription: "The length should be between 3 and 15, must alphanumeric character or dash and start with a letter"
+  IAMRoleBaseName:
+    Default: "role"
+    Description: "The base bame of IAM Role.The Project Name and Environment will be added as prefix and suffix by the template."
+    Type: String
+    MinLength: 4
+    MaxLength: 20
+    AllowedPattern: "[a-zA-Z0-9-.]*"
+    ConstraintDescription: "The length should be between 4 and 20,  must alphanumeric character or dash and start with a letter"
+  IAMInstanceProfileBaseName:
+    Default: "instance-profile"
+    Description: "The base bame of IAM Instance Profile.The Project Name and Environment will be added as prefix and suffix by the template."
+    Type: String
+    MinLength: 10
+    MaxLength: 25
+    AllowedPattern: "[a-zA-Z0-9-]*"
+    ConstraintDescription:  "The length should be between 10 and 25,  must alphanumeric character or dash and start with a letter"
+  ###################################### Security Group ############################################
+  SecurityGroupName:
+    Type: String
+    Default: "ec2-sg"
+    Description: The Name of the security group.
+    MinLength: 5
+    MaxLength: 8
+    AllowedPattern: "[a-zA-Z0-9-]*"
+    ConstraintDescription: The length should be between 5 and 8, must contain only alphanumeric character and start with a uppercase letter.
+  SecurityGroupDescription:
+    Type: String
+    Default: "Security Group to allow SSH from anywhere."
+    Description: The Security group description.
+    AllowedPattern: "[a-zA-Z0-9-. ]*"
+    MinLength: 15
+    MaxLength: 50
+    ConstraintDescription: The length should be between 10 and 50, must contain only alphanumeric character and dot, space or dash and start with an uppercase letter.
+  ###################################### EC2 #######################################################
+  EC2InstanceType:
+    Description: Type Of EC2 Instance To Launch For The Server. Only Compute Type Nodes Are Currently Specified.
+    Type: String
+    Default: t2.micro
+    ConstraintDescription: Must be a valid EC2 instance type
+    AllowedValues: 
+      - t2.nano
+      - t2.micro
+      - t2.small 
+  ##################################### SNS Topic with Subscription ###############################
+  SNSTopicBaseName:
+    Default: "sns"
+    Description: "The base name of the Sns Topic. The Project Name, Environment and Region will be added as prefix and suffix by the template."
+    Type: String
+    MinLength: 3
+    MaxLength: 15
+    AllowedPattern: "[a-z][a-z0-9-]*"
+    ConstraintDescription: "The length should be between 3 and 15, must contain only lowercase letter, number, dash, dot and should start with a letter."
+  SNSTopicDisplayName:
+    Default: "Sns Topic Name for sending CloudWatch Alerts."
+    Description: "The SNS Topic Display Name."
+    Type: String
+    MinLength: 30
+    MaxLength: 200
+    AllowedPattern: "[a-zA-Z0-9-. _]*"
+    ConstraintDescription: "The length should be between 30 and 200, must alphanumeric character, space, dot dash or underscore."
+  SNSSubscriptionEmail:
+    Default: "subhamay.aws@mailinator.com"
+    Description: "The Subscription Email For The Sns Topic."
+    Type: String
+    MinLength: 10
+    MaxLength: 100
+    AllowedPattern: "[a-zA-Z0-9-.@_]*"
+    ConstraintDescription:  "The length should be between 10 and 100, must be a valid email id."
+  ###################################### EC2 memory usage CW Alarm #################################
+  AlarmThreshold:
+    Default: 30
+    Description: "The Cloudwatch Alarm Threshold. Number Of Lambda Executions After Which The Alarm Will Be Triggered."
+    Type: Number
+    MinValue: 1
+    MaxValue: 99
+    ConstraintDescription: must be between 70 and 99.
+  AlarmPeriodInSeconds:
+    Default: 300
+    Description: "The Period, In Seconds, Over Which The Statistic Is Applied."
+    Type: Number
+    MinValue: 10
+    MaxValue: 3600
+    ConstraintDescription: "Must be between 10 and 3600 seconds."
+  EvaluationPeriods: 
+    Default: 1
+    Description: "The Number Of Periods Over Which Data Is Compared To The Specified Threshold."
+    Type: Number
+    MinValue: 1
+    MaxValue: 3
+    ConstraintDescription: "Must be between 1 and 3 Hours."
+  AlarmComparisonOperator:
+    Default: "GreaterThanThreshold"
+    Description: "The Lambda Invocations Alarm Comparison Operator."
+    Type: String
+    AllowedValues: [GreaterThanThreshold, GreaterThanOrEqualToThreshold, LessThanThreshold, LessThanOrEqualToThreshold]
+Resources:
+  ###################################### EC2 Instance Profile ######################################
+  HeleniumInstanceProfile:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/iam-instance-profile-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+        IAMPolicyBaseName: !Ref IAMPolicyBaseName
+        IAMRoleBaseName: !Ref IAMRoleBaseName 
+        IAMInstanceProfileBaseName: !Ref IAMInstanceProfileBaseName
+      TimeoutInMinutes: 15
+  ###################################### VPC #######################################################
+  HeleniumVPC:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/vpc-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+        VpcCidrBlock: !Ref VpcCidrBlock
+        PublicSubnet1ACidrBlock: !Ref PublicSubnet1ACidrBlock
+        PublicSubnet1BCidrBlock: !Ref PublicSubnet1BCidrBlock
+        PrivateSubnet1ACidrBlock: !Ref PrivateSubnet1ACidrBlock
+        PrivateSubnet1BCidrBlock: !Ref PrivateSubnet1BCidrBlock
+        CustomResourceStackName: !Ref CustomResourceStackName
+  ###################################### Security Group ############################################
+  HeleniumSecurityGroup:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/security-group-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+        VPCId: !GetAtt HeleniumVPC.Outputs.VpcId
+        SecurityGroupName: !Ref SecurityGroupName 
+        SecurityGroupDescription: !Ref SecurityGroupDescription
+      TimeoutInMinutes: 15
+  ###################################### EC2 Instance ##############################################
+  HeleniumEC2Instance:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/ec2-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+        KmsMasterKeyId: !Ref KmsMasterKeyId
+        EC2InstanceType: !Ref EC2InstanceType
+        EC2InstanceProfile: !Sub '${ProjectName}-${IAMInstanceProfileBaseName}-${Environment}${CiBuild}'
+        SubnetId: !GetAtt HeleniumVPC.Outputs.PublicSubnet1AId
+        SecurityGroupId: !GetAtt HeleniumSecurityGroup.Outputs.SecurityGroupId
+      TimeoutInMinutes: 15
+  ###################################### SNS Topic With Email Subscription #########################
+  HeleniumSNSTopic:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/sns-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+        SNSTopicBaseName: !Ref SNSTopicBaseName
+        SNSTopicDisplayName: !Ref SNSTopicDisplayName 
+        SNSSubscriptionEmail: !Ref SNSSubscriptionEmail
+        SNSKmsMasterKeyAlias: !Ref KmsMasterKeyAlias
+      TimeoutInMinutes: 15
+  ###################################### Config IAM Role ###########################################
+  HeleniumConfigIAMRole:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/iam-role-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+      TimeoutInMinutes: 15
+  ###################################### Config Rule ###############################################
+  HeleniumConfigRule:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/config-rule-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        GitHubRepository: !Ref GitHubRepository
+        GitHubRef: !Ref GitHubRef
+        GitHubURL: !Ref GitHubURL
+        GitHubWFRunNumber: !Ref GitHubWFRunNumber
+        GitHubSHA: !Ref GitHubSHA
+        CiBuild: !Ref CiBuild
+        ConfigIAMRole: !GetAtt HeleniumConfigIAMRole.Outputs.ConfigRoleArn
+      TimeoutInMinutes: 15
+  ###################################### CloudWatch Alarms #########################################
+  HeleniumCloudWatchAlarms:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub 'https://${CodeRepositoryS3Bucket}.s3.amazonaws.com/${GitHubRepository}/cft/nested-stacks/cloudwatch-stack.yaml'
+      Parameters:  
+        ProjectName: !Ref ProjectName
+        Environment: !Ref Environment
+        CiBuild: !Ref CiBuild
+        EC2InstanceId: !GetAtt HeleniumEC2Instance.Outputs.EC2InstanceId
+        SNSTopicBaseName: !Ref SNSTopicBaseName
+        AlarmThreshold: !Ref AlarmThreshold
+        AlarmPeriodInSeconds: !Ref AlarmPeriodInSeconds
+        EvaluationPeriods: !Ref EvaluationPeriods
+        AlarmComparisonOperator: !Ref AlarmComparisonOperator
+      TimeoutInMinutes: 5
+Outputs:
+  HeleniumIAMPolicyArn:
+    Description: Helenium IAM Policy Arn
+    Value: !GetAtt HeleniumInstanceProfile.Outputs.IAMPolicyArn
+  HeleniumIAMRoleArn:
+    Description: Helenium IAM Role Arn
+    Value: !GetAtt HeleniumInstanceProfile.Outputs.IAMRoleArn
+  HeleniumInstanceProfileArn:
+    Description: Helenium Instance Profile Arn
+    Value: !GetAtt HeleniumInstanceProfile.Outputs.IAMInstanceProfileArn
+  HeleniumSecurityGroupId:
+    Description: Helenium EC2 Security Group Id
+    Value: !GetAtt HeleniumSecurityGroup.Outputs.SecurityGroupId
+  HeleniumSNSTopicArn:
+    Description: Helenium SNS Topic Arn
+    Value: !GetAtt HeleniumSNSTopic.Outputs.SNSTopicArn
+  HeleniumSNSSubscriptionArn:
+    Description: Helenium SNS Topc Subscription Arn
+    Value: !GetAtt HeleniumSNSTopic.Outputs.SNSSubscriptionArn
+  HeleniumVPCId:
+    Description: VPC Id
+    Value: !GetAtt HeleniumVPC.Outputs.VpcId
+  HeleniumPublicSubnet1AId:
+    Description: Public Subnet-1A Id
+    Value: !GetAtt HeleniumVPC.Outputs.PublicSubnet1AId
+  HeleniumPublicSubnet1BId:
+    Description: Public Subnet-1B Id
+    Value: !GetAtt HeleniumVPC.Outputs.PublicSubnet1BId
+  HeleniumPrivateSubnet1AId:
+    Description: Private Subnet-1A Id
+    Value: !GetAtt HeleniumVPC.Outputs.PrivateSubnet1AId
+  HeleniumPrivateSubnet1BId:
+    Description: Private Subnet-1A Id
+    Value: !GetAtt HeleniumVPC.Outputs.PrivateSubnet1BId
+  HeleniumSubnet1AAvailabilityZone:
+    Description: Availability Zone of Subnet 1A
+    Value: !GetAtt HeleniumVPC.Outputs.Subnet1AAvailabilityZone
+  HeleniumSubnet1BAvailabilityZone:
+    Description: Availability Zone of Subnet 1B
+    Value: !GetAtt HeleniumVPC.Outputs.Subnet1BAvailabilityZone
+  HeleniumEC2Id:
+    Description: EC2 Instance Id
+    Value: !GetAtt HeleniumEC2Instance.Outputs.EC2InstanceId
+  HeleniumEC2PublicIP:
+    Description: Helenium EC2 inatance public ip
+    Value: !GetAtt HeleniumEC2Instance.Outputs.EC2PublicIP
+  HeleniumConfigIAMRoleArn:
+    Description: Helenium Config IAM Role Arn
+    Value: !GetAtt HeleniumConfigIAMRole.Outputs.ConfigRoleArn
+  HeleniumSecurityGroupConfigRuleId:
+    Description: Helenium Security Group Config Rule Id
+    Value: !GetAtt HeleniumConfigRule.Outputs.ConfigRuleId
+  HeleniumSecurityGroupConfigRuleArn:
+    Description: Helenium Security Group Config Rule Arn
+    Value: !GetAtt HeleniumConfigRule.Outputs.ConfigRuleArn
+  HeleniumSecurityGroupRemediationRule:
+    Description: Helenium Security Group Config Rule Name
+    Value: !GetAtt HeleniumConfigRule.Outputs.RemediationRuleName

@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion : 2010-09-09
+Description: >-
+  Project Helenium: CFN Template To Create A CloudWatch for monitoring EC2 Memory usage.
+
+Metadata:
+  TemplateName: cloudwatch-stack.yaml
+  TemplateType: CloudWatch Alarm.
+  Version: 1.0.0
+  Owner: Subhamay Bhattacharyya
+  ProjectName: Helenium
+  Modification History:
+    - 1.0.0  - Dec 30, 2023   -- Initial Version 
+
+  Resources: 
+    - Five CloudWatch Alarms For Lambda Fucntion.
+  StepsToTest: |
+    Manualy verify the Stack.
+  StepsToCleanup: |
+    Stack delete command
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    #################################### Project Name and Environment ##############################
+    - Label: 
+        default: 'Project And Environment:'
+      Parameters: 
+        - ProjectName
+        - Environment
+    #################################### GitHub Attributes #########################################
+    - Label:
+        default: "GitHub Attributes:"
+      Parameters:
+      - CiBuild
+    #################################### Lambda Function ###########################################
+    - Label: 
+        default: 'The EC2 Instance Id:'
+      Parameters: 
+        - EC2InstanceId
+    #################################### SNS Topic #################################################
+    - Label: 
+        default: 'SNS Topic Base Name:'
+      Parameters: 
+        - SNSTopicBaseName
+    #################################### CloudWatch Alarm ############################
+    - Label: 
+        default: 'CloudWatch Lambda Invocations Alarm Configuration:'
+      Parameters: 
+        - AlarmComparisonOperator
+        - AlarmThreshold
+        - AlarmPeriodInSeconds
+        - EvaluationPeriods
+    ParameterLabels:
+      ################################## Project Name and Environment ##############################
+      ProjectName:
+        default: 'Project Name.'
+      Environment:
+        default: 'Environment Name.'
+      #################################### Lambda Function ###########################################
+      SNSTopicBaseName:
+        default: "The base name of the SNS Topic."
+      ################################## GitHub Attributes #########################################
+      CiBuild:
+        default: 'Feature branch Ci Build.'
+      ################################## 1. Lambda Invocations CW Alarm ############################
+      EC2InstanceId:
+        default: 'EC2 Instance Id.'
+      AlarmComparisonOperator: 
+        default: 'Lambda Invocations CloudWatch invocation condition.'
+      AlarmThreshold: 
+        default: 'Lambda Invocations CloudWatch Alarm Threshold.'
+      AlarmPeriodInSeconds: 
+        default: 'Lambda Invocations CloudWatch Alarm Period in Seconds.'
+      EvaluationPeriods:
+        default: 'The number of periods over which data is compared to the specified threshold.'
+Parameters:
+  ###################################### Project Name and Environment ##############################
+  ProjectName:
+    Default: project
+    Description: 'The Project Name.'
+    Type: String
+    MinLength: 5
+    MaxLength: 30
+    AllowedPattern: '[a-z]*'
+    ConstraintDescription: 'The length should be between 5 and 30, must contain only lowercase alphabets.'
+  Environment:
+    Default: devl
+    Description: 'The Environment Name.'
+    Type: String
+    AllowedValues: ['devl', 'test', 'prod']
+    ConstraintDescription: 'The Environment must be devl / test or prod.'  
+  ###################################### GitHub Attributes #########################################
+  CiBuild:
+    Default: ""
+    Description: "Ci Build of the feature branch."
+    Type: String  
+  ###################################### Lambda Function ###########################################
+  EC2InstanceId:
+    Default: i-0e7697728b71f6495
+    Description: 'EC2 InstanceId for which the CloudWatch Alarm will be created.'
+    Type: String
+    MinLength: 19
+    MaxLength: 19
+    AllowedPattern: 'i-[a-z0-9]*'
+    ConstraintDescription: Must be between 19 characters long and begin with i- and can contain alphanumeric character.
+  ###################################### SNS Topic #################################################
+  SNSTopicBaseName:
+    Default: 'sns'
+    Description: The SNS Topic Arn.
+    Type: String
+    MinLength: 3
+    MaxLength: 15
+    AllowedPattern: '[a-z][a-z0-9-]*'
+    ConstraintDescription: The length should be between 3 and 15, must contain only lowercase letter,numbers,dash, dot and should start with a letter.
+  ###################################### EC2 memory Usage CloudWatch Alarm #########################
+  AlarmThreshold:
+    Default: 5
+    Description: 'The Cloudwatch Alarm Threshold. Number Of Lambda Executions After Which The Alarm Will Be Triggered.'
+    Type: Number
+    MinValue: 1
+    MaxValue: 99
+    ConstraintDescription: must be between 70 and 99.
+  AlarmPeriodInSeconds:
+    Default: 900
+    Description: 'The Period, In Seconds, Over Which The Statistic Is Applied.'
+    Type: Number
+    MinValue: 10
+    MaxValue: 3600
+    ConstraintDescription: 'Must be between 10 and 3600 seconds.'
+  EvaluationPeriods: 
+    Default: 1
+    Description: 'The Number Of Periods Over Which Data Is Compared To The Specified Threshold.'
+    Type: Number
+    MinValue: 1
+    MaxValue: 3
+    ConstraintDescription: 'Must be between 1 and 3 Hours.'
+  AlarmComparisonOperator:
+    Default: 'GreaterThanOrEqualToThreshold'
+    Type: String
+    AllowedValues: [GreaterThanThreshold, GreaterThanOrEqualToThreshold, LessThanThreshold, LessThanOrEqualToThreshold]
+Resources:
+  ###################################### 1. Lambda Invocations CW Alarm ############################ 
+  CloudWatchAlarm:
+    Type: 'AWS::CloudWatch::Alarm'
+    Properties:
+      ActionsEnabled: true
+      AlarmName: !Sub '${ProjectName}-memory-usage-${Environment}-${AWS::Region}${CiBuild}'
+      AlarmDescription: '**EC2 Memory Usage Alarm**' 
+      AlarmActions:
+        - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${ProjectName}-${SNSTopicBaseName}-${Environment}-${AWS::Region}${CiBuild}'
+      ComparisonOperator: !Ref AlarmComparisonOperator
+      MetricName: 'MemoryUsage'
+      Namespace: Helenium/EC2
+      Statistic: 'Average'
+      Threshold: !Ref AlarmThreshold
+      EvaluationPeriods: !Ref EvaluationPeriods       #### Datapoints to alarm -> DatapointsToAlarm out of EvaluationPeriods
+      Dimensions:
+        - Name: 'Name'
+          Value: 'InstanceId'
+        - Name: 'Value'
+          Value: !Ref EC2InstanceId
+      Period: !Ref AlarmPeriodInSeconds
+      TreatMissingData: notBreaching
+Outputs:
+    CloudWatchAlarmArn:
+      Description: The Arn of the CloudWatch Alarm
+      Value: !GetAtt CloudWatchAlarm.Arn
+

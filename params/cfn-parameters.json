@@ -1,0 +1,26 @@
+{
+    "stack-prefix": "root",
+    "stack-suffix": "stack",
+    "template-path": "/cft/helenium-root-stack.yaml",
+    "project-name": "helenium",
+    "parameters": {
+        "devl": [
+            {
+                "Environment": "devl",
+                "CustomResourceStackName": "lilac-custom-resource-stack"
+            }
+        ],
+        "test": [
+            {
+                "Environment": "test",
+                "CustomResourceStackName": "lilac-custom-resource-stack"
+            }
+        ],
+        "prod": [
+            {
+                "Environment": "prod",
+                "CustomResourceStackName": "lilac-custom-resource-stack"
+            }
+        ]
+    }
+}
